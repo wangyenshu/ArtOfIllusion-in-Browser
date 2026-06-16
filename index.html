@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ArtOfIllusion (CheerpJ)</title>
+    <script src="https://cjrtnc.leaningtech.com/4.2/loader.js"></script>
+    <style>
+      body {
+        margin: 0;
+        background: #f0f0f0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      function execCb(cmdPath, argsArray) {
+        if (cmdPath == "xdg-open") {
+          window.open(argsArray, "_blank");
+        }
+      }
+
+      (async function () {
+        await cheerpjInit({ 
+          version: 8, 
+          enableDebug: true, 
+          execCallback: execCb,
+          systemProperties: { 
+            "user.home": "/str", 
+            "user.dir": "/app/ArtOfIllusion-in-Browser/ArtOfIllusion"
+          }
+        });
+
+        cheerpjCreateDisplay(1400, 850);
+        
+        const classPath = [
+          "/app/ArtOfIllusion-in-Browser/ArtOfIllusion/ArtOfIllusion.jar",
+          "/app/ArtOfIllusion-in-Browser/ArtOfIllusion/lib/Buoy.jar",
+          "/app/ArtOfIllusion-in-Browser/ArtOfIllusion/lib/Buoyx.jar",
+          "/app/ArtOfIllusion-in-Browser/ArtOfIllusion/lib/bsh-2.0b4.jar",
+          "/app/ArtOfIllusion-in-Browser/ArtOfIllusion/lib/groovy-4.0.15.jar",
+          "/app/ArtOfIllusion-in-Browser/ArtOfIllusion/lib/Jama-1.0.2.jar",
+          "/app/ArtOfIllusion-in-Browser/ArtOfIllusion/lib/rsyntaxtextarea-3.1.1.jar",
+          "/app/ArtOfIllusion-in-Browser/ArtOfIllusion/lib/svgSalamander.jar"
+        ].join(":");
+
+        await cheerpjRunMain("artofillusion.ArtOfIllusion", classPath);
+      })();
+    </script>
+  </body>
+</html>

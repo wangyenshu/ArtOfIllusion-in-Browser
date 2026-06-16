@@ -1,0 +1,127 @@
+
+/*
+<?xml version='1.0' standalone='yes' ?>
+<!--  xml header for scripts and plugin manager --> 
+<script>
+	<name>Distribute</name>
+	<author>Julian MacDonald (macdonaldj@users.sourceforge.net)</author>
+	<version>1.8</version>
+	<date>01/01/2003</date>
+<description>
+This script produces a series of copies of a selected object and distributes them randomly
+over the surface of a triangle mesh object. The script uses the wireframe vertices of the mesh
+as possible locations for the copied objects. Therefore, you need to make sure the wireframe of
+the mesh is fine enough for your purposes. If not, try subdviding edges/faces.
+</description>
+<comments>
+</comments>
+</script>
+*/
+
+scene = window.getScene();
+r=new Random(0);
+//
+// get list of selected objects
+sel=scene.getSelection();
+//
+// check how many objects are selected - if none return with message
+num=sel.length;
+if (num !=2)
+{
+   new MessageDialog(window, "Select 2 objects; one for a surface, the other as the object to distribute");
+   return;
+}
+//
+// get selected objectInfos & actual objects
+selObjInfo1=scene.getObject(sel[0]);
+selObj1=selObjInfo1.object;
+selObjInfo2=scene.getObject(sel[1]);
+selObj2=selObjInfo2.object;
+//
+//
+// set up dialogue
+//
+SurfObjList=new BList();
+RepObjList=new BList();
+SurfObjList.add(selObjInfo1.name);        // add object 1 to Surflist 
+RepObjList.add(selObjInfo1.name);       //  add object 1 to repeating object list
+SurfObjList.add(selObjInfo2.name);        // add object 2 to Surflist 
+RepObjList.add(selObjInfo2.name);       //  add object 2 to repeating object list
+//
+numObjField = new ValueField(10, ValueField.POSITIVE+ValueField.INTEGER);
+sizeVarField = new ValueField(0.5, ValueField.NONNEGATIVE);
+rotVarField=new ValueField(0.5,ValueField.NONNEGATIVE);
+dlg = new ComponentsDialog(window, "Select Parameters",
+     new Widget [] {SurfObjList,RepObjList,numObjField, sizeVarField,rotVarField},
+      new String [] {"Surface to Distribute Over","Object to Copy","Number of Copies", "Size Variation","Rotation Variation"});
+if (!dlg.clickedOk())
+    return;
+//
+// get choices from dialogue
+numObj = numObjField.getValue();
+sizeVar=sizeVarField.getValue();
+rotVar=rotVarField.getValue();
+SurfObjName=SurfObjList.getSelectedValue();
+RepObjName=RepObjList.getSelectedValue();
+//
+// The list returns only the selected listed names, so find out which objects they actually are
+if (SurfObjName.equals(selObjInfo1.name)) 
+{
+     SurfObjInfo=scene.getObject(sel[0]);
+     SurfObj=SurfObjInfo.object;
+     RepObjInfo=scene.getObject(sel[1]);
+     RepObj=RepObjInfo.object;
+}
+else
+{
+     SurfObjInfo=scene.getObject(sel[1]);
+     SurfObj=SurfObjInfo.object;
+     RepObjInfo=scene.getObject(sel[0]);
+     RepObj=RepObjInfo.object;
+}
+//
+// get Wireframe Mesh of surface
+//
+meshVert=SurfObj.getWireframeMesh().vert;
+repObjCoords=new CoordinateSystem[numObj];   // create an array so each object has its own coordinate system
+repObjOrient=RepObjInfo.coords.getRotationAngles();  // get the orientation of the object to be copied
+size=RepObj.getBounds().getSize();    // get the size of the object to be copied
+//
+// loop through required number of times and produce randomly scaled/oriented copies
+for (i=0;i<numObj;i++)
+{
+   RepObjCopy=RepObj.duplicate();  // create a duplicate of the object to be copied
+ //  repObjCoords[i]=SurfObjInfo.coords.duplicate();       // change coordinate of repeated objects to that of the mesh
+   repObjCoords[i]=new CoordinateSystem();
+   randomV=r.nextDouble()*meshVert.length;         // pick a random vertex from the wireframe mesh to put the object at
+   //
+   // get the x, y and z coordinates of that vertex and set the copied object at that point (by setting origin of its coordinate system)
+   x=meshVert[randomV].x;   
+   y=meshVert[randomV].y;
+   z=meshVert[randomV].z;
+   origin=new Vec3(x,y,z);
+   repObjCoords[i].setOrigin(origin);
+   repObjCoords[i].transformOrigin(SurfObjInfo.coords.fromLocal());   // move the origin to match that of the surface object.
+  //
+  //  randomly rescale the copied object
+  sizeFactor=1+(r.nextDouble()-0.5)*sizeVar*2;   // calculate a scaling factor based on size variation entered
+  sizeX=size.x*sizeFactor;
+  sizeY=size.y*sizeFactor;
+  sizeZ=size.z*sizeFactor;
+  RepObjCopy.setSize(sizeX,sizeY,sizeZ);
+  //
+  // randomly orient the copied object
+  OrientX=(r.nextDouble()-0.5)*360*rotVar+repObjOrient[0];  // create a  random vector for the x orientation
+  OrientY=(r.nextDouble()-0.5)*360*rotVar+repObjOrient[1];  // create a  random vector for the y orientation
+  OrientZ=(r.nextDouble()-0.5)*360*rotVar+repObjOrient[2];  // create a  random vector for the z orientation
+  repObjCoords[i].setOrientation(OrientX, OrientY,OrientZ);   // add the random vectors to the starting orientation
+  //
+  repObjCopyInfo=new ObjectInfo(RepObjCopy,repObjCoords[i],"object");
+  //  Make the new objects children of the surface object
+  SurfObjInfo.addChild(repObjCopyInfo,0);
+  // Add the object to the scene
+  window.addObject(repObjCopyInfo,null);    
+}
+window.rebuildItemList();
+     
+

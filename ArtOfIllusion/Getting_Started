@@ -1,0 +1,36 @@
+Thanks for installing Art of Illusion!
+======================================
+
+We hope that you find the program useful and enjoyable to work with.
+We've tried to make the interface intuitive and easy to understand, so
+don't be afraid to just launch AoI and start experimenting!
+
+
+Starting the program:
+~~~~~~~~~~~~~~~~~~~~~
+
+In this folder, you will find a launcher that starts AoI.
+
+- On Windows, this is `ArtOfIllusion.exe`
+- On Linux, there is `aoi.sh` (Your file manager needs to be set to
+  run shell scripts, rather than opening them for editing)
+- If you've downloaded the AppleOS `.dmg` file, just move the
+  `Art Of Illusion 3.2.0.app` to your applications folder and launch
+  it like any other application
+
+
+I'd like detailed documentation & tutorials:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Go to http://artofillusion.org/documentation 
+
+There is a detailed manual, as well as several focused tutorials. A
+common place to start is the hourglass tutorial, which gives a simple
+introduction to many parts of the program.
+
+What's new?
+~~~~~~~~~~~
+
+Returning users should find the interface and basic tools quite
+familiar. A list of the latest updates is included in the `Changelog`
+file in this directory.

@@ -1,0 +1,497 @@
+/*
+<?xml version='1.0' standalone='yes' ?>
+<!--  xml header for scripts & plugin manager --> 
+<script>
+	<name>Grunge</name>
+	<author>Julian MacDonald</author>
+	<version>2.1</version>
+	<date>23/09/2007</date>
+	<description>
+This script preferentially targets textures to particular parts of a triangle mesh.  There are
+3 types of targeting: (1) on concave parts of the mesh, i.e. vertices on an edge which joins 2 faces
+that are below a certain tolerance angle (useful for e.g. Dirt textures), (2) on convex parts of the mesh,
+i.e. vertices on an edge joining 2 faces with angles above a certain specified tolerance (useful for e.g.
+scratches/dents, and (3) vertices of the mesh which face upwards (in World coordinates), useful for
+Dust/Snow textures.  In each case, textures are applied by creating a layered texture for the object (or
+adding a new layer(s) if the mesh already has a layered texture applied).  The texture layers are applied
+per-vertex as an overlay (maintaining bumps).  The script initially prompts for the user to select which
+of the 3 targeting types to apply (more than one can be selected) - it then goes through each in turn,
+allowing the user to select the texture to apply, the tolerance angle (if appropriate) and the Probability
+(that a particular vertex meeting the tolerance angle requirement is assigned that texture).
+Note that the script can be applied any number of times, each time a new layer is added to create, for
+example, several layers of dirt etc.
+    </description>
+    <comments>
+    </comments>
+</script>
+*/
+//
+scene=window.getScene();
+sel=scene.getSelection();
+if (sel.length==0)
+{
+	new MessageDialog(window, "Please select one Triangle Mesh");
+	return;
+}
+selObj=scene.getObject(sel[0]);
+if (selObj.object instanceof TriangleMesh ==false)
+{
+	new MessageDialog(window, "Object must be a Triangle Mesh");
+	return;
+}
+//
+// create dialogue to get user to select the type of effect(s)
+//
+// ADD A 'CANCEL' BUTTON
+cancelB=new BButton("Cancel");
+cancelB.addEventLink(CommandEvent.class,new Runnable(){
+	void run()
+	{
+		dial.dispose();
+	}
+},"run");
+
+// ADD AN 'OK' BUTTON
+okB=new BButton("OK");
+okB.addEventLink(CommandEvent.class,new Runnable(){
+	void run()
+	{
+		obj=selObj.object;
+		if (dirtChoice.getState()) obj=addDirt(obj,tolFieldDirt.getValue(),probFieldDirt.getValue(),texListDirt.getSelectedIndex());
+		if (dustChoice.getState()) obj=addDust(obj,tolFieldDust.getValue(),probFieldDust.getValue(),texListDust.getSelectedIndex());
+		if (scratchChoice.getState()) obj=addScratches(obj,tolFieldScratches.getValue(),probFieldScratches.getValue(),texListScratches.getSelectedIndex());
+		dial.dispose();
+	}
+},"run");
+
+//  ADD AN 'UPDATE' PREVIEW BUTTON
+previewB=new BButton("Update Preview");
+previewB.addEventLink(CommandEvent.class,new Runnable(){
+	void run()
+	{
+		//objCopy=selObj.object.duplicate();
+		preview.getObject().object=selObj.object.duplicate();
+	  objForPreview=preview.getObject().object;
+		if (dirtChoice.getState()) objForPreview=addDirt(objForPreview,tolFieldDirt.getValue(),probFieldDirt.getValue(),texListDirt.getSelectedIndex());
+		if (dustChoice.getState()) objForPreview=addDust(objForPreview,tolFieldDust.getValue(),probFieldDust.getValue(),texListDust.getSelectedIndex());
+		if (scratchChoice.getState()) objForPreview=addScratches(objForPreview,tolFieldScratches.getValue(),probFieldScratches.getValue(),texListScratches.getSelectedIndex());
+		preview.render();
+	}
+},"run");
+//
+dirtChoice=new BCheckBox("Dirt       ",false);
+scratchChoice=new BCheckBox("Scratches",false);
+dustChoice=new BCheckBox("Dust       ",false);
+//
+dirtChoice.addEventLink(ValueChangedEvent.class,new Runnable(){
+	void run()
+	{
+		texListDirt.setEnabled(dirtChoice.getState());
+		tolFieldDirt.setEnabled(dirtChoice.getState());
+		probFieldDirt.setEnabled(dirtChoice.getState());
+	}
+},"run");
+//
+dustChoice.addEventLink(ValueChangedEvent.class,new Runnable(){
+	void run()
+	{
+		texListDust.setEnabled(dustChoice.getState());
+		tolFieldDust.setEnabled(dustChoice.getState());
+		probFieldDust.setEnabled(dustChoice.getState());
+	}
+},"run");
+//
+scratchChoice.addEventLink(ValueChangedEvent.class,new Runnable(){
+	void run()
+	{
+		texListScratches.setEnabled(scratchChoice.getState());
+		tolFieldScratches.setEnabled(scratchChoice.getState());
+		probFieldScratches.setEnabled(scratchChoice.getState());
+	}
+},"run");
+//
+numT=scene.getNumTextures();
+texListDirt=new BComboBox();
+texListDust=new BComboBox();
+texListScratches=new BComboBox();
+//
+tolFieldDirt=new ValueField(120,ValueField.POSITIVE);
+tolFieldDust=new ValueField(10,ValueField.POSITIVE);
+tolFieldScratches=new ValueField(220,ValueField.POSITIVE);
+probFieldDirt=new ValueField(100,ValueField.POSITIVE+ValueField.INTEGER);
+probFieldDust=new ValueField(100,ValueField.POSITIVE+ValueField.INTEGER);
+probFieldScratches=new ValueField(100,ValueField.POSITIVE+ValueField.INTEGER);
+tolFieldDirt.setEnabled(false);
+tolFieldDust.setEnabled(false);
+tolFieldScratches.setEnabled(false);
+probFieldDirt.setEnabled(false);
+probFieldDust.setEnabled(false);
+probFieldScratches.setEnabled(false);
+//
+for (i=0;i<numT;i++)
+{
+	texture=scene.getTexture(i);
+	texListDirt.add(texture.getName());
+	texListDust.add(texture.getName());
+	texListScratches.add(texture.getName());
+}
+texListDirt.setEnabled(false);
+texListDust.setEnabled(false);
+texListScratches.setEnabled(false);
+//
+dial=new BDialog(window,false);
+dial.setTitle("GRUNGE SCRIPT");
+//
+fc=new FormContainer(new double []{1,1,1},new double [] {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1});
+rcon1=new RowContainer();
+rcon12=new RowContainer();
+rcon13=new RowContainer();
+//
+rcon2=new RowContainer();
+rcon22=new RowContainer();
+rcon23=new RowContainer();
+//
+rcon3=new RowContainer();
+rcon32=new RowContainer();
+rcon33=new RowContainer();
+//
+rcon1.add(new BLabel("Dirt Texture to Apply"));
+rcon1.add(texListDirt);
+rcon12.add(new BLabel("Apply if angle between faces <:"));
+rcon12.add(tolFieldDirt);
+rcon13.add(new BLabel("Probability:"));
+rcon13.add(probFieldDirt);
+//
+rcon2.add(new BLabel("Dust Texture to Apply"));
+rcon2.add(texListDust);
+rcon22.add(new BLabel("Apply if Angle From Horizontal <:"));
+rcon22.add(tolFieldDust);
+rcon23.add(new BLabel("Probability:"));
+rcon23.add(probFieldDust);
+//
+rcon3.add(new BLabel("Scratches Texture to Apply"));
+rcon3.add(texListScratches);
+rcon32.add(new BLabel("Apply if Angle Between Faces >:"));
+rcon32.add(tolFieldScratches);
+rcon33.add(new BLabel("Probability:"));
+rcon33.add(probFieldScratches);
+//
+fc.add(dirtChoice,0,0);
+fc.add(dustChoice,0,4);
+fc.add(scratchChoice,0,8);
+//
+fc.add(rcon1,1,0);
+fc.add(rcon12,1,1);
+fc.add(rcon13,1,2);
+//
+fc.add(rcon2,1,4);
+fc.add(rcon22,1,5);
+fc.add(rcon23,1,6);
+//
+fc.add(rcon3,1,8);
+fc.add(rcon32,1,9);
+fc.add(rcon33,1,10);
+//
+objForPreview=selObj.object.duplicate();
+fc.add(preview = new MaterialPreviewer(objForPreview.getTexture(), objForPreview.getMaterial(), objForPreview.duplicate(), 240, 240),0,11,3,2);
+//
+fc.add(cancelB,0,13);
+fc.add(previewB,1,13);
+fc.add(okB,2,13);
+//
+dial.setContent(fc);
+dial.pack();
+dial.setVisible(true);
+//
+//
+//
+//*****DIRT in creases******
+Object3D addDirt(object,tolerance,prob,selTexIndx)
+{
+	
+	selTex=scene.getTexture(selTexIndx);
+	
+	//
+	// get the object's current texture and create a layered texture
+	// retaining existing mapping
+	//
+	objTex=object.getTexture();  
+	
+	texMap=object.getTextureMapping();
+	layer=false;
+	
+	if (texMap instanceof LayeredMapping) layer=true;
+	//
+	if (layer)
+	{
+		texMap.addLayer(selTex);
+		texMap.setLayerMapping(0,selTex.getDefaultMapping(selObj.object));
+		texMap.setLayerMode(0,2); // set top layer to Overlay with Bumps
+	}
+	if (!layer)
+	{ 
+		layTex=new LayeredTexture(selObj.object);
+		layTexMap=layTex.getDefaultMapping(selObj.object);
+		layTexMap.addLayer(objTex);
+		layTexMap.setLayerMapping(0,texMap);
+		layTexMap.addLayer(selTex);
+		layTexMap.setLayerMapping(0,selTex.getDefaultMapping(selObj.object));
+		layTexMap.setLayerMode(0,2); // set top layer to Overlay with Bumps
+	}
+	
+	//
+	vert=object.getVertices();
+	numVert=vert.length;
+	tpVal=new double[numVert];
+	//
+	// determine texture parameters for mapping dirt texture
+	paramVal=new VertexParameterValue(tpVal);
+	normals=object.getNormals();
+	edges=object.getEdges();  //get the edges
+	faces=object.getFaces(); //get the faces
+	numEdge=edges.length;
+	//
+	for (i=0;i<numEdge;i++)
+	{
+   	// get the face numbers attached to each edge
+   	face1=edges[i].f1;
+   	face2=edges[i].f2;
+   	if (face2!=-1)    // if not a boundary edge
+   	{
+      // get the vertex numbers of the vertices making up each face
+      // face1
+      vt11=vert[faces[face1].v1].r;
+      vt12=vert[faces[face1].v2].r;
+      vt13=vert[faces[face1].v3].r;
+      // face 2
+      vt21=vert[faces[face2].v1].r;
+      vt22=vert[faces[face2].v2].r;
+      vt23=vert[faces[face2].v3].r;
+      //
+      //
+      // calculate the vector perpendicular to each face and normalise
+      normVec1=(vt11.minus(vt12)).cross(vt11.minus(vt13));
+      normVec2=(vt21.minus(vt22)).cross(vt21.minus(vt23));
+      normVec1.normalize();
+      normVec2.normalize();
+      //
+      mid1=vt11.plus(vt12).plus(vt13).times(1.0/3);
+      mid2=vt21.plus(vt22).plus(vt23).times(1.0/3);
+      midDiff = mid1.minus(mid2);
+      faceAngle=180-Math.acos(normVec1.dot(normVec2))*180/Math.PI;
+      //
+   	}
+   	// if below our tolerance (i.e. above a certain angle), add dirt texture to vertices
+   	// the second test excludes convex faces (thanks to Peter Eastman)
+   	// the third test uses the Probability to decide whether to set the parameter
+   	rand=new Random();
+   	if ((faceAngle<tolerance) && (midDiff.dot(normVec1)<0)&&(rand.nextDouble()<prob/100.0))
+   	{
+      tpVal[edges[i].v1]=1.0;
+      tpVal[edges[i].v2]=1.0;
+   	}
+	}
+	// 
+	// set the new texture
+	if (!layer)
+	{
+		params=layTexMap.getLayerParameters(0);
+		object.setTexture(layTex,layTexMap);
+	}
+	else
+	{
+		params=texMap.getLayerParameters(0);
+		object.setTexture(objTex,texMap);
+	}
+	object.setParameterValue(params[0],paramVal);  // apply it
+	//
+	return object;
+}
+//
+//
+//
+// ***SCRATCHES on outer geometry*****
+Object3D addScratches(object,tolerance,prob,selTexIndx)
+{
+	tolerance=360-tolerance;
+	selTex=scene.getTexture(selTexIndx);
+	//
+	// get the object's current texture and create a layered texture
+	// retaining existing mapping
+	//
+	objTex=object.getTexture();  
+	texMap=object.getTextureMapping();
+	layer=false;
+	if (texMap instanceof LayeredMapping) layer=true;
+	//
+	if (layer)
+	{
+		texMap.addLayer(selTex);
+		texMap.setLayerMapping(0,selTex.getDefaultMapping(selObj.object));
+		texMap.setLayerMode(0,2); // set top layer to Overlay with Bumps
+	}
+	if (!layer)
+	{ 
+		layTex=new LayeredTexture(selObj.object);
+		layTexMap=layTex.getDefaultMapping(selObj.object);
+		layTexMap.addLayer(objTex);
+		layTexMap.setLayerMapping(0,texMap);
+		layTexMap.addLayer(selTex);
+		layTexMap.setLayerMapping(0,selTex.getDefaultMapping(selObj.object));
+		layTexMap.setLayerMode(0,2); // set top layer to Overlay with Bumps
+	}
+	//
+	vert=object.getVertices();
+	numVert=vert.length;
+	tpVal=new double[numVert];
+	//
+	// determine texture parameters for mapping dirt texture
+	paramVal=new VertexParameterValue(tpVal);
+	normals=object.getNormals();
+	edges=object.getEdges();  //get the edges
+	faces=object.getFaces(); //get the faces
+	numEdge=edges.length;
+	//
+	for (i=0;i<numEdge;i++)
+	{
+   	// get the face numbers attached to each edge
+   	face1=edges[i].f1;
+   	face2=edges[i].f2;
+   	if (face2!=-1)    // if not a boundary edge
+   	{
+      // get the vertex numbers of the vertices making up each face
+      // face1
+      vt11=vert[faces[face1].v1].r;
+      vt12=vert[faces[face1].v2].r;
+      vt13=vert[faces[face1].v3].r;
+      // face 2
+      vt21=vert[faces[face2].v1].r;
+      vt22=vert[faces[face2].v2].r;
+      vt23=vert[faces[face2].v3].r;
+      //
+      //
+      // calculate the vector perpendicular to each face and normalise
+      normVec1=(vt11.minus(vt12)).cross(vt11.minus(vt13));
+      normVec2=(vt21.minus(vt22)).cross(vt21.minus(vt23));
+      normVec1.normalize();
+      normVec2.normalize();
+      //
+      mid1=vt11.plus(vt12).plus(vt13).times(1.0/3);
+      mid2=vt21.plus(vt22).plus(vt23).times(1.0/3);
+      midDiff = mid1.minus(mid2);
+      faceAngle=180-Math.acos(normVec1.dot(normVec2))*180/Math.PI;
+      //
+   	}
+   	// if above our tolerance (i.e. above a certain angle), add scratch texture to vertices
+   	// the second test excludes concave faces (thanks to Peter Eastman)
+   	// the third test uses the Probability to decide whether to set the parameter
+   	rand=new Random();
+   	if ((faceAngle<tolerance)&&(midDiff.dot(normVec1)>0)&&(rand.nextDouble()<prob/100.0))
+   	{
+      tpVal[edges[i].v1]=1.0;
+      tpVal[edges[i].v2]=1.0;
+  	}
+	}
+	// 
+	// set the new texture
+	if (!layer)
+	{
+		params=layTexMap.getLayerParameters(0);
+		object.setTexture(layTex,layTexMap);
+	}
+	else
+	{
+		params=texMap.getLayerParameters(0);
+		object.setTexture(objTex,texMap);
+	}
+	object.setParameterValue(params[0],paramVal);  // apply it
+	//
+	return object;
+}
+//
+//
+//  ***DUST*** on upward facing geometry
+//
+Object3D addDust(object,tolerance,prob,selTexIndx)
+{
+	selTex=scene.getTexture(selTexIndx);
+	//
+	// get the object's current texture and create a layered texture
+	// retaining existing mapping
+	//
+	objTex=object.getTexture();  
+	texMap=object.getTextureMapping();
+	layer=false;
+	if (texMap instanceof LayeredMapping) layer=true;
+	//
+	if (layer)
+	{
+		texMap.addLayer(selTex);
+		texMap.setLayerMapping(0,selTex.getDefaultMapping(selObj.object));
+		texMap.setLayerMode(0,2); // set top layer to Overlay with Bumps
+	}
+	if (!layer)
+	{ 
+		layTex=new LayeredTexture(selObj.object);
+		layTexMap=layTex.getDefaultMapping(selObj.object);
+		layTexMap.addLayer(objTex);
+		layTexMap.setLayerMapping(0,texMap);
+		layTexMap.addLayer(selTex);
+		layTexMap.setLayerMapping(0,selTex.getDefaultMapping(selObj.object));
+		layTexMap.setLayerMode(0,2); // set top layer to Overlay with Bumps
+	}
+	//
+	vert=object.getVertices();
+	numVert=vert.length;
+	tpVal=new double[numVert];
+	//
+	// determine texture parameters for mapping dirt texture
+	paramVal=new VertexParameterValue(tpVal);
+	normals=object.getNormals();
+	edges=object.getEdges();  //get the edges
+	faces=object.getFaces(); //get the faces
+	numFace=faces.length;
+	numEdge=edges.length;
+	//
+	for (i=0;i<numFace;i++)
+	{
+   	// get the vertex numbers attached to each face
+   	vt1=vert[faces[i].v1].r;
+   	vt2=vert[faces[i].v2].r;
+   	vt3=vert[faces[i].v3].r;
+   	//
+   	//
+   	// calculate the vector perpendicular to each face and normalise
+  	 normVec=(vt1.minus(vt2)).cross(vt1.minus(vt3));
+  	 normVec.normalize();
+  	 corMat=selObj.coords.fromLocal();
+  	 normVecC=corMat.timesDirection(normVec);
+  	 //
+  	 // calculate angle from horizontal
+  	 faceAngle=Math.acos(normVecC.dot(new Vec3(0,1,0)))*180/Math.PI;
+  	 // if below our tolerance angle, add scratch texture to vertices
+  	 // the second test uses the Probability to decide whether to set the parameter
+   	rand=new Random();
+   	if ((faceAngle<tolerance)&&(rand.nextDouble()<prob/100.0))
+   	{
+      tpVal[faces[i].v1]=1.0;
+      tpVal[faces[i].v2]=1.0;
+      tpVal[faces[i].v3]=1.0;
+  	}
+	}
+	// 
+	// set the new texture
+	if (!layer)
+	{
+		params=layTexMap.getLayerParameters(0);
+		object.setTexture(layTex,layTexMap);
+	}
+	else
+	{
+		params=texMap.getLayerParameters(0);
+		object.setTexture(objTex,texMap);
+	}
+	object.setParameterValue(params[0],paramVal);  // apply it
+	//
+	return object;
+}
